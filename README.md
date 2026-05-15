@@ -2,9 +2,10 @@
 
 > A web-based constraint toolkit for VLSI synthesis engineers — validate, debug, and generate `.sdc` files from a clean browser UI. No EDA tool required.
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit%20Cloud-FF4B4B?logo=streamlit&logoColor=white)](https://sdc-tools-8mxtuhwy5myvejdcmpuwbp.streamlit.app/)
 [![Part of VLSI Hub](https://img.shields.io/badge/Part%20of-VLSI%20Hub-0f172a)](https://github.com/RAMA-L7/vlsi-hub)
 
 ---
@@ -19,6 +20,16 @@ Writing and debugging SDC constraint files is error-prone and time-consuming. **
 | **SDC Generator** | Builds a complete, synthesis-ready `.sdc` from a structured form — with live preview and one-click download |
 
 Supports all standard SDC commands across primary clocks, generated clocks, virtual clocks, I/O constraints, timing exceptions, DFT, AOCV derate, power, and more.
+
+---
+
+## 🚀 Live Demo
+
+**Try it now — no install needed:**
+
+> **[https://sdc-tools-8mxtuhwy5myvejdcmpuwbp.streamlit.app/](https://sdc-tools-8mxtuhwy5myvejdcmpuwbp.streamlit.app/)**
+
+Hosted on Streamlit Cloud. Upload your own `.sdc` file or use the built-in sample to test the checker instantly.
 
 ---
 
@@ -100,7 +111,7 @@ streamlit run app.py
 
 The app opens automatically at **`http://localhost:8501`**
 
-> **Python 3.8 or later** is required.
+> **Python 3.11** is recommended (used in the live deployment).
 
 ---
 
@@ -129,17 +140,6 @@ sdc = generate_sdc(SDCParams(design_name='MY_CHIP'))
 print(sdc)
 "
 ```
-
----
-
-## Deploy to Streamlit Cloud (free, ~2 minutes)
-
-1. Push this repo to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
-3. Click **New app** → select `RAMA-L7/sdc-tools` → main file: `app.py`
-4. Click **Deploy**
-
-Your app gets a public URL instantly — shareable with your team.
 
 ---
 
