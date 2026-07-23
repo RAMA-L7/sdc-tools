@@ -24,6 +24,7 @@ from rules_registry import (
     APP_VERSION, get_all_rules, get_rules_by_module,
     get_rules_by_severity, get_rule,
 )
+from coverage import parse_sdc_coverage
 
 st.set_page_config(
     page_title="SDC Tools",
@@ -75,13 +76,14 @@ code { font-family: monospace; background:#f3f4f6; padding:1px 6px; border-radiu
 st.title("🔧 SDC Tools")
 st.caption("Validate existing constraints · Generate a complete SDC for your design")
 
-tab_checker, tab_generator, tab_mmc_mgr, tab_mmc_gen, tab_analyzer, tab_clock_rel = st.tabs([
+tab_checker, tab_generator, tab_mmc_mgr, tab_mmc_gen, tab_analyzer, tab_clock_rel, tab_coverage = st.tabs([
     "🛡 Checker / Validator",
     "⚙️ SDC Generator",
     "🔲 MMC Corner Manager",
     "📦 MMC SDC Generator",
     "🔍 Constraint Change Analyzer",
     "🕐 Clock Relations",
+    "📊 Coverage",
 ])
 
 
@@ -120,6 +122,25 @@ with tab_checker:
         sdc_text = pasted
 
     if sdc_text:
+        # ── Custom Rules upload ───────────────────────────────────────────────
+        custom_rule_results = []
+        cr_uploaded = st.file_uploader("📋 Custom Rules YAML (optional)", type=["yaml", "yml"],
+                                       key="cr_checker_upload",
+                                       help="Upload a custom rules YAML file to run alongside the built-in checker")
+        if cr_uploaded:
+            try:
+                import yaml
+                cr_data = cr_uploaded.read().decode("utf-8")
+                from custom_rules import load_ruleset, apply_rules
+                import tempfile, os
+                tmp = os.path.join(tempfile.gettempdir(), cr_uploaded.name)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    f.write(cr_data)
+                rs = load_ruleset(tmp)
+                custom_rule_results = apply_rules(sdc_text, rs)
+            except Exception as cr_err:
+                st.warning(f"Custom rules not loaded: {cr_err}")
+
         result = check_sdc(sdc_text)
         errors   = result.errors
         warnings = result.warnings
@@ -163,6 +184,24 @@ with tab_checker:
             cols = st.columns(4)
             for i, (k, v) in enumerate(result.stats.items()):
                 cols[i % 4].metric(k, v)
+
+        # ── Custom Rules Results ───────────────────────────────────────────
+        if custom_rule_results:
+            st.divider()
+            with st.expander("📋 **Custom Rules Results**", expanded=True):
+                passed = sum(1 for r in custom_rule_results if r.passed)
+                failed = sum(1 for r in custom_rule_results if not r.passed)
+                st.caption(f"{passed} passed, {failed} failed out of {len(custom_rule_results)} custom rules")
+                for r in custom_rule_results:
+                    icon = "✅" if r.passed else "❌"
+                    sev = {"error": "🔴", "warning": "🟡", "info": "ℹ️"}.get(r.rule.severity, "")
+                    with st.expander(f"{icon} `{r.rule.id}` — {r.msg[:100]}"):
+                        st.markdown(f"**Rule:** {r.rule.name}")
+                        st.markdown(f"**Severity:** {sev} {r.rule.severity}")
+                        st.markdown(f"**Description:** {r.rule.description}")
+                        st.markdown(f"**Status:** {'✅ Passed' if r.passed else '❌ Failed'}")
+                        if not r.passed:
+                            st.warning(r.msg)
 
         # ── Rule Reference ────────────────────────────────────────────────────
         st.divider()
@@ -1517,3 +1556,136 @@ with tab_clock_rel:
 
     elif not cr_text:
         st.info("Upload an SDC file or paste text above to analyze clock relationships.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CONSTRAINT COVERAGE TAB
+# ════════════════════════════════════════════════════════════════════════════
+with tab_coverage:
+    st.subheader("📊 Constraint Coverage Analyzer")
+    st.caption(
+        "Measures which constraint categories are covered vs. missing — "
+        "gap analysis for signoff readiness. Identifies what's NOT in your SDC."
+    )
+
+    cv_col_up, cv_col_paste = st.columns([1, 2])
+    with cv_col_up:
+        cv_uploaded = st.file_uploader("Upload .sdc / .tcl / .txt", type=["sdc", "tcl", "txt"], key="cv_upload")
+    with cv_col_paste:
+        cv_pasted = st.text_area(
+            "Or paste SDC text here", height=120,
+            placeholder=(
+                "set sdc_version 2.2\n"
+                "set_units -time ns -capacitance pF\n"
+                "create_clock -name clk -period 10.0 [get_ports clk]\n"
+                "set_input_delay 2.0 -clock clk [all_inputs]\n"
+                "..."
+            ),
+            key="cv_paste",
+        )
+
+    cv_text = None
+    if cv_uploaded:
+        cv_text = cv_uploaded.read().decode("utf-8", errors="replace")
+    elif cv_pasted.strip():
+        cv_text = cv_pasted
+
+    if cv_text and st.button("📊 Analyze Coverage", type="primary", use_container_width=True, key="cv_analyze_btn"):
+        with st.spinner("Analyzing constraint coverage..."):
+            cv_result = parse_sdc_coverage(cv_text)
+
+        if not cv_result.categories:
+            st.warning("No constraint categories found.")
+        else:
+            st.divider()
+
+            # ── Overall score ────────────────────────────────────────────────
+            score = cv_result.score
+            if score >= 80:
+                score_color = "#059669"
+                score_label = "Good"
+            elif score >= 50:
+                score_color = "#d97706"
+                score_label = "Needs Work"
+            else:
+                score_color = "#dc2626"
+                score_label = "Incomplete"
+
+            st.markdown(
+                f'<div style="text-align:center;margin:12px 0">'
+                f'<span style="font-size:56px;font-weight:800;color:{score_color}">{score:.1f}%</span>'
+                f'<br><span style="font-size:14px;color:#6b7280">Constraint Coverage — {cv_result.total_present} of {cv_result.total_items} items present</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            # ── Summary metrics ─────────────────────────────────────────────
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc1.metric("📊 Coverage", f"{score:.0f}%")
+            mc2.metric("✅ Present", cv_result.total_present)
+            mc3.metric("❌ Missing", cv_result.total_missing)
+            mc4.metric("📁 Categories", len(cv_result.categories))
+
+            # ── Category cards ──────────────────────────────────────────────
+            for cat in cv_result.categories:
+                bar_color = "#059669" if cat.score >= 80 else "#d97706" if cat.score >= 50 else "#dc2626"
+                with st.expander(f"{cat.icon} {cat.name} — {cat.score:.0f}% ({cat.covered}/{cat.total})", expanded=(cat.score < 80)):
+                    # Progress bar
+                    st.markdown(
+                        f'<div style="background:#e5e7eb;border-radius:6px;height:12px;margin-bottom:12px">'
+                        f'<div style="background:{bar_color};height:12px;border-radius:6px;width:{cat.score:.0f}%"></div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                    # Items table
+                    for item in cat.items:
+                        if item.present:
+                            icon = "✅"
+                            color = "#059669"
+                        elif item.is_critical:
+                            icon = "🔴"
+                            color = "#dc2626"
+                        else:
+                            icon = "❌"
+                            color = "#6b7280"
+
+                        st.markdown(
+                            f'<span style="color:{color};font-weight:600">{icon}</span> '
+                            f'<span style="font-size:13px">{item.name}</span>'
+                            f' <span style="color:#6b7280;font-size:12px">{item.detail}</span>',
+                            unsafe_allow_html=True,
+                        )
+
+            # ── Missing items summary ───────────────────────────────────────
+            missing_items = []
+            for cat in cv_result.categories:
+                for item in cat.items:
+                    if not item.present:
+                        missing_items.append((cat.name, cat.icon, item))
+
+            if missing_items:
+                st.subheader(f"⚠️ Missing Items ({len(missing_items)})")
+                st.info("These constraints are not defined in your SDC. Critical items (🔴) should be added before signoff.")
+
+                for cat_name, cat_icon, item in missing_items:
+                    crit = "🔴" if item.is_critical else "⚪"
+                    st.markdown(
+                        f"{crit} **{cat_name}** — {item.name}"
+                        f"  \n> {item.detail}",
+                    )
+
+            # ── Download HTML report ────────────────────────────────────────
+            st.divider()
+            from reporter import generate_coverage_report
+            cov_html = generate_coverage_report(cv_result, "coverage_report")
+            st.download_button(
+                "📥 Download HTML Report",
+                data=cov_html,
+                file_name="sdc_coverage_report.html",
+                mime="text/html",
+                use_container_width=True,
+            )
+
+    elif not cv_text:
+        st.info("Upload an SDC file or paste text above to analyze constraint coverage.")

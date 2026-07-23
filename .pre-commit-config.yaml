@@ -1,0 +1,27 @@
+# Pre-commit configuration for sdc-tools
+# Install: pip install pre-commit && pre-commit install
+# Docs: https://pre-commit.com
+
+repos:
+  - repo: local
+    hooks:
+      - id: sdc-check
+        name: SDC Check
+        description: Validate staged .sdc and .tcl files using sdc-tools
+        entry: python cli.py check
+        language: system
+        files: \.(sdc|tcl)$
+        types: [text]
+        stages: [pre-commit]
+        # Fail on errors, allow warnings to pass
+        args: []
+
+      - id: sdc-check-verbose
+        name: SDC Check (verbose)
+        description: Validate SDC files with full info output
+        entry: python cli.py check --verbose
+        language: system
+        files: \.(sdc|tcl)$
+        types: [text]
+        stages: [manual]
+        args: ["--verbose"]

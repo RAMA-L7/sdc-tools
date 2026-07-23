@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+.vscode/
+.idea/
+*.md
+cov.json
+cov_report.html
+sdc_coverage_report.html
+*.egg-info/
+dist/
+build/

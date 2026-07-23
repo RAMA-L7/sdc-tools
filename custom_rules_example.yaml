@@ -1,0 +1,97 @@
+# SDC Tools — Example Custom Rules
+# Copy and modify for your project's signoff policies.
+# Usage: python cli.py check my.sdc --custom-rules path/to/this/file.yaml
+name: Example Rules
+version: "1.0"
+description: Example custom validation rules for SDC signoff readiness
+
+rules:
+  # ── Clock Policies ────────────────────────────────────────────────────
+  - id: CUST-001
+    name: "Clock period maximum"
+    severity: warning
+    description: "Flag any clock with period above 10ns (frequency below 100MHz)"
+    command: create_clock
+    condition: value_above
+    field: period
+    pattern: "-period\\s+([\\d.]+)"
+    threshold: 10.0
+    message: "Clock period {value}ns exceeds 10ns limit — verify with architect"
+
+  - id: CUST-002
+    name: "Require propagated clock"
+    severity: error
+    description: "All designs must use set_propagated_clock"
+    command: set_propagated_clock
+    condition: present
+    message: "No set_propagated_clock — required for post-layout correlation"
+
+  # ── I/O Policies ─────────────────────────────────────────────────────
+  - id: CUST-003
+    name: "Require input delay"
+    severity: error
+    description: "All input ports must be constrained"
+    command: set_input_delay
+    condition: present
+    message: "No set_input_delay — input ports unconstrained"
+
+  - id: CUST-004
+    name: "Require output delay"
+    severity: error
+    description: "All output ports must be constrained"
+    command: set_output_delay
+    condition: present
+    message: "No set_output_delay — output ports unconstrained"
+
+  # ── Derate Policies ──────────────────────────────────────────────────
+  - id: CUST-005
+    name: "Require timing derate"
+    severity: warning
+    description: "AOCV derate must be defined for advanced-node signoff"
+    command: set_timing_derate
+    condition: present
+    message: "No set_timing_derate — needed for AOCV/POCVM signoff"
+
+  - id: CUST-006
+    name: "Require operating conditions"
+    severity: warning
+    description: "PVT corner must be explicitly specified"
+    command: set_operating_conditions
+    condition: present
+    message: "No set_operating_conditions — PVT corner unspecified"
+
+  # ── Count Policies ───────────────────────────────────────────────────
+  - id: CUST-007
+    name: "Max false paths"
+    severity: warning
+    description: "Review if more than 15 false paths defined"
+    command: set_false_path
+    condition: count_above
+    threshold: 15
+    message: "Found {count} false paths — review each one for necessity"
+
+  - id: CUST-008
+    name: "Max disable timing arcs"
+    severity: warning
+    description: "Excessive disable_timing can hide violations"
+    command: set_disable_timing
+    condition: count_above
+    threshold: 5
+    message: "Found {count} disable_timing commands — verify each arc"
+
+  # ── Policy / Style ───────────────────────────────────────────────────
+  - id: CUST-009
+    name: "Require set_dont_use"
+    severity: info
+    description: "Cell exclusion list recommended for all designs"
+    command: set_dont_use
+    condition: present
+    message: "No set_dont_use — consider excluding weak/problematic cells"
+
+  - id: CUST-010
+    name: "Require clock gating check"
+    severity: info
+    description: "Recommended if design uses clock gating cells"
+    command: set_clock_gating_check
+    condition: present
+    message: "No set_clock_gating_check — needed if design uses clock gating"
